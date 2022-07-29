@@ -9,6 +9,22 @@ class PhotosScreen extends StatefulWidget {
 }
 
 class _PhotosScreenState extends State<PhotosScreen> {
+  ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController()
+      ..addListener(() {
+        if (_scrollController.offset ==
+                _scrollController.position.maxScrollExtent &&
+            context.read<PhotosBloc>().state.status !=
+                PhotosStatus.paginating) {
+          context.read<PhotosBloc>().add(PhotosPaginate());
+        }
+      });
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -19,7 +35,20 @@ class _PhotosScreenState extends State<PhotosScreen> {
         ),
         body: BlocConsumer<PhotosBloc, PhotosState>(
           listener: (context, state) {
-            if (state.status == PhotosStatus.error) {
+            if (state.status == PhotosStatus.paginating) {
+              Scaffold.of(context).hideCurrentSnackBar();
+              Scaffold.of(context).showSnackBar(SnackBar(
+                backgroundColor: Colors.green,
+                content: Text('Loading more photos ...'),
+                duration: Duration(seconds: 1),
+              ));
+            } else if (state.status == PhotosStatus.noMorePhotos) {
+              Scaffold.of(context).showSnackBar(SnackBar(
+                backgroundColor: Colors.red,
+                content: Text('No more photos ...'),
+                duration: Duration(milliseconds: 1500),
+              ));
+            } else if (state.status == PhotosStatus.error) {
               showDialog(
                 context: context,
                 builder: (context) => AlertDialog(
@@ -55,32 +84,32 @@ class _PhotosScreenState extends State<PhotosScreen> {
                         }
                       },
                     ),
-                    if (state.status == PhotosStatus.loaded)
-                      Expanded(
-                        child: state.photos.isNotEmpty
-                            ? GridView.builder(
-                                padding: const EdgeInsets.all(20.0),
-                                gridDelegate:
-                                    SliverGridDelegateWithFixedCrossAxisCount(
-                                  mainAxisSpacing: 15.0,
-                                  crossAxisSpacing: 15.0,
-                                  crossAxisCount: 2,
-                                  childAspectRatio: 0.8,
-                                ),
-                                itemBuilder: (context, index) {
-                                  final photo = state.photos[index];
-                                  return PhotoCard(
-                                    photos: state.photos,
-                                    index: index,
-                                    photo: photo,
-                                  );
-                                },
-                                itemCount: state.photos.length,
-                              )
-                            : Center(
-                                child: Text('No results.'),
+                    Expanded(
+                      child: state.photos.isNotEmpty
+                          ? GridView.builder(
+                              controller: _scrollController,
+                              padding: const EdgeInsets.all(20.0),
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                mainAxisSpacing: 15.0,
+                                crossAxisSpacing: 15.0,
+                                crossAxisCount: 2,
+                                childAspectRatio: 0.8,
                               ),
-                      ),
+                              itemBuilder: (context, index) {
+                                final photo = state.photos[index];
+                                return PhotoCard(
+                                  photos: state.photos,
+                                  index: index,
+                                  photo: photo,
+                                );
+                              },
+                              itemCount: state.photos.length,
+                            )
+                          : Center(
+                              child: Text('No results.'),
+                            ),
+                    ),
                   ],
                 ),
                 if (state.status == PhotosStatus.loading)

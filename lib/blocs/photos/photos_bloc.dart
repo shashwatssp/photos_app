@@ -1,10 +1,9 @@
-import 'dart:html';
+import 'dart:async';
 
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
-import 'package:flutter/cupertino.dart';
-import 'package:flutter_photos/models/failure_model.dart';
-import 'package:flutter_photos/models/photo_model.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_photos/models/models.dart';
 import 'package:flutter_photos/repositories/repositories.dart';
 
 part 'photos_event.dart';
@@ -29,6 +28,8 @@ class PhotosBloc extends Bloc<PhotosEvent, PhotosState> {
   ) async* {
     if (event is PhotosSearchPhotos) {
       yield* _mapPhotosSearchPhotosToState(event);
+    } else if (event is PhotosPaginate) {
+      yield* _mapPhotosPaginateToState();
     }
   }
 
@@ -42,9 +43,29 @@ class PhotosBloc extends Bloc<PhotosEvent, PhotosState> {
     } catch (err) {
       print(err);
       yield state.copyWith(
-        failure: Failure(message: 'Something went wrong! '),
+        failure: Failure(
+          message: 'Something went wrong! Please try a different search',
+        ),
         status: PhotosStatus.error,
       );
     }
+  }
+
+  Stream<PhotosState> _mapPhotosPaginateToState() async* {
+    yield state.copyWith(status: PhotosStatus.paginating);
+
+    final photos = List<Photo>.from(state.photos);
+    List<Photo> nextPhotos = [];
+    if (photos.length >= PhotosRepository.numPerPage) {
+      nextPhotos = await _photosRepository.searchPhotos(
+          query: state.query,
+          page: state.photos.length ~/ PhotosRepository.numPerPage + 1);
+    }
+    yield state.copyWith(
+      photos: photos..addAll(nextPhotos),
+      status: nextPhotos.isNotEmpty
+          ? PhotosStatus.loaded
+          : PhotosStatus.noMorePhotos,
+    );
   }
 }
